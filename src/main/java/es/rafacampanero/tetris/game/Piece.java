@@ -1,78 +1,150 @@
 package es.rafacampanero.tetris.game;
 
-import javafx.scene.paint.Color;
+import java.awt.Color;
 
+/**
+ * Representa una pieza del Tetris.
+ */
 public class Piece {
-    public boolean[][] shape;
-    public Color color;
-    public int x = 3; // posición por defecto
-    public int y = 0;
 
-    public Piece(boolean[][] shape, Color color) {
-        this.shape = shape;
-        this.color = color;
+    // Tipos de piezas Tetris (I, O, T, S, Z, J, L)
+    public enum Type {
+        I, O, T, S, Z, J, L
     }
 
+    private Type type;
+    private Color color;
+    private int[][] shape; // Matriz 2D de la pieza
+    private int x, y; // Posición en el tablero
+
+    public Piece(Type type) {
+        this.type = type;
+        this.x = 3; // posición inicial centralizada
+        this.y = 0; // arriba del tablero
+        setShapeAndColor();
+    }
+
+    private void setShapeAndColor() {
+        switch (type) {
+            case I:
+                shape = new int[][] {
+                        { 1, 1, 1, 1 }
+                };
+                color = Color.CYAN;
+                break;
+            case O:
+                shape = new int[][] {
+                        { 1, 1 },
+                        { 1, 1 }
+                };
+                color = Color.YELLOW;
+                break;
+            case T:
+                shape = new int[][] {
+                        { 0, 1, 0 },
+                        { 1, 1, 1 }
+                };
+                color = Color.MAGENTA;
+                break;
+            case S:
+                shape = new int[][] {
+                        { 0, 1, 1 },
+                        { 1, 1, 0 }
+                };
+                color = Color.GREEN;
+                break;
+            case Z:
+                shape = new int[][] {
+                        { 1, 1, 0 },
+                        { 0, 1, 1 }
+                };
+                color = Color.RED;
+                break;
+            case J:
+                shape = new int[][] {
+                        { 1, 0, 0 },
+                        { 1, 1, 1 }
+                };
+                color = Color.BLUE;
+                break;
+            case L:
+                shape = new int[][] {
+                        { 0, 0, 1 },
+                        { 1, 1, 1 }
+                };
+                color = Color.ORANGE;
+                break;
+        }
+    }
+
+    public int[][] getShape() {
+        return shape;
+    }
+
+    public Color getColor() {
+        return color;
+    }
+
+    /**
+     * Rota la pieza 90 grados en el sentido de las agujas del reloj.
+     */
     public void rotate() {
-        int h = shape.length;
-        int w = shape[0].length;
-        boolean[][] rotated = new boolean[w][h];
-        for (int r = 0; r < h; r++) {
-            for (int c = 0; c < w; c++) {
-                rotated[c][h - 1 - r] = shape[r][c];
+        int filas = shape.length;
+        int cols = shape[0].length;
+        int[][] rotated = new int[cols][filas];
+
+        for (int i = 0; i < filas; i++) {
+            for (int j = 0; j < cols; j++) {
+                rotated[j][filas - 1 - i] = shape[i][j];
             }
         }
         shape = rotated;
     }
 
-    // Factory methods para piezas clásicas
-    public static Piece createI() {
-        return new Piece(new boolean[][]{
-                {true, true, true, true}
-        }, Color.CYAN);
+    /**
+     * Devuelve una copia rotada de la pieza (sin modificar la original)
+     */
+    public Piece getRotatedCopy() {
+        Piece copy = new Piece(this.type);
+        int filas = shape.length;
+        int cols = shape[0].length;
+        int[][] rotated = new int[cols][filas];
+        for (int i = 0; i < filas; i++) {
+            for (int j = 0; j < cols; j++) {
+                rotated[j][filas - 1 - i] = shape[i][j];
+            }
+        }
+        copy.shape = rotated;
+        copy.setX(this.x);
+        copy.setY(this.y);
+        return copy;
     }
 
-    public static Piece createO() {
-        return new Piece(new boolean[][]{
-                {true, true},
-                {true, true}
-        }, Color.YELLOW);
+    public int getX() {
+        return x;
     }
 
-    public static Piece createT() {
-        return new Piece(new boolean[][]{
-                {false, true, false},
-                {true, true, true}
-        }, Color.PURPLE);
+    public int getY() {
+        return y;
     }
 
-    public static Piece createL() {
-        return new Piece(new boolean[][]{
-                {true, false},
-                {true, false},
-                {true, true}
-        }, Color.ORANGE);
+    public void setX(int x) {
+        this.x = x;
     }
 
-    public static Piece createJ() {
-        return new Piece(new boolean[][]{
-                {false, true},
-                {false, true},
-                {true, true}
-        }, Color.BLUE);
+    public void setY(int y) {
+        this.y = y;
     }
 
-    public static Piece createS() {
-        return new Piece(new boolean[][]{
-                {false, true, true},
-                {true, true, false}
-        }, Color.GREEN);
+    public void moveDown() {
+        y++;
     }
 
-    public static Piece createZ() {
-        return new Piece(new boolean[][]{
-                {true, true, false},
-                {false, true, true}
-        }, Color.RED);
+    public void moveLeft() {
+        x--;
+    }
+
+    public void moveRight() {
+        x++;
     }
 }
