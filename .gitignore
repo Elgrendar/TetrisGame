@@ -1,0 +1,9 @@
+/target/
+/.vscode/
+/.idea/
+/*.log
+/data/
+data/highscores.json
+*.class
+*.iml
+*.ipr
