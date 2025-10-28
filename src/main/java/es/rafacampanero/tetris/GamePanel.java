@@ -2,6 +2,8 @@ package es.rafacampanero.tetris;
 
 import es.rafacampanero.tetris.game.Piece;
 import es.rafacampanero.tetris.sound.SoundManager;
+import es.rafacampanero.tetris.game.HighScoreManager;
+import es.rafacampanero.tetris.ui.HighScorePanel;
 
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
@@ -9,6 +11,8 @@ import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.util.Random;
+
+import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 
 /**
@@ -29,14 +33,11 @@ public class GamePanel extends JPanel {
     private Piece currentPiece;
     private Random random;
     private int dropSpeed = 500; // milisegundos
+    private HighScoreManager highScoreManager = new HighScoreManager();// gestor de puntuaciones
 
     // 🎯 Variables de puntuación
     private int score = 0;
     private int linesCleared = 0;
-
-    // Control del hilo de juego
-    private Thread gameThread;
-    private volatile boolean running = false; // bandera para controlar el hilo
 
     public GamePanel() {
         // Ahora el panel es más ancho para mostrar la puntuación
@@ -162,6 +163,68 @@ public class GamePanel extends JPanel {
                 }
                 break;
         }
+    }
+
+    private void startGameLoop() {
+        Thread gameThread = new Thread(() -> {
+            try {
+                while (true) {
+                    Thread.sleep(dropSpeed);
+                    if (canMove(currentPiece, currentPiece.getX(), currentPiece.getY() + 1)) {
+                        currentPiece.moveDown();
+                    } else {
+                        mergePieceToBoard(currentPiece);
+                        int cleared = clearFullRows();
+                        linesCleared += cleared;
+                        // 💯 Añadir puntuación por filas borradas
+                        if (cleared > 0) {
+                            SoundManager.playClear();
+                            switch (cleared) {
+                                case 1 -> score += 100;
+                                case 2 -> score += 300;
+                                case 3 -> score += 500;
+                                case 4 -> score += 800; // Tetris!
+                            }
+                        }
+
+                        spawnNewPiece();
+
+                        // 🔚 Verificar si hay piezas en la parte superior
+                        if (!canMove(currentPiece, currentPiece.getX(), currentPiece.getY())) {
+                            // Comprobar si la puntuación entra en el top 20
+                            if (highScoreManager.qualifiesForHighScore(score)) {
+                                String name = JOptionPane.showInputDialog(this,
+                                        App.mensajes.getString("game.highscore.entername"),
+                                        "High Score", JOptionPane.PLAIN_MESSAGE);
+                                if (name != null && !name.isBlank()) {
+                                    highScoreManager.addScore(name.trim(), score);
+                                }
+                            }
+
+                            // Mostrar mensaje de fin de juego
+                            JOptionPane.showMessageDialog(this,
+                                    App.mensajes.getString("game.end"),
+                                    "Game Over", JOptionPane.INFORMATION_MESSAGE);
+
+                            // Mostrar muro de la fama en ventana aparte
+                            JFrame hsFrame = new JFrame("Muro de la Fama");
+                            HighScorePanel hsPanel = new HighScorePanel(highScoreManager);
+                            hsFrame.add(hsPanel);
+                            hsFrame.pack();
+                            hsFrame.setLocationRelativeTo(this);
+                            hsFrame.setVisible(true);
+
+                            resetGame();
+                        }
+
+                    }
+                    repaint();
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        });
+        gameThread.start();
     }
 
     private boolean canMove(Piece piece, int x, int y) {
