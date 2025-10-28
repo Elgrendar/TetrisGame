@@ -4,6 +4,7 @@ import es.rafacampanero.tetris.game.Piece;
 import es.rafacampanero.tetris.sound.SoundManager;
 
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -12,8 +13,11 @@ import javax.swing.JOptionPane;
 
 /**
  * Panel principal del juego Tetris.
- * 
+ *
  * Controla el tablero, piezas, colisiones, sonidos y puntuación.
+ *
+ * Ahora exposa métodos start() y stop() para controlar el bucle desde fuera
+ * (para que el juego no arranque automáticamente al crear el panel).
  */
 public class GamePanel extends JPanel {
 
@@ -30,7 +34,9 @@ public class GamePanel extends JPanel {
     private int score = 0;
     private int linesCleared = 0;
 
-
+    // Control del hilo de juego
+    private Thread gameThread;
+    private volatile boolean running = false; // bandera para controlar el hilo
 
     public GamePanel() {
         // Ahora el panel es más ancho para mostrar la puntuación
@@ -47,12 +53,86 @@ public class GamePanel extends JPanel {
         addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
+                // si no estamos corriendo, ignoramos input de juego
+                if (!running)
+                    return;
                 handleKey(e);
                 repaint();
             }
         });
 
-        startGameLoop();
+        // NOTA: NO arrancamos el bucle aquí. Llamarás a start() desde el menú.
+        // startGameLoop(); <-- eliminado
+    }
+
+    /**
+     * Inicia el hilo del juego. Llamar esto cuando el usuario elija "Empezar".
+     */
+    public void start() {
+        if (running)
+            return;
+        running = true;
+        gameThread = new Thread(() -> {
+            try {
+                while (running) {
+                    Thread.sleep(dropSpeed);
+                    if (currentPiece == null)
+                        continue;
+
+                    if (canMove(currentPiece, currentPiece.getX(), currentPiece.getY() + 1)) {
+                        currentPiece.moveDown();
+                    } else {
+                        mergePieceToBoard(currentPiece);
+                        int cleared = clearFullRows();
+                        linesCleared += cleared;
+                        // 💯 Añadir puntuación por filas borradas
+                        if (cleared > 0) {
+                            SoundManager.playClear();
+                            switch (cleared) {
+                                case 1 -> score += 100;
+                                case 2 -> score += 300;
+                                case 3 -> score += 500;
+                                case 4 -> score += 800; // Tetris!
+                            }
+                        }
+
+                        spawnNewPiece();
+
+                        // 🔚 Verificar si hay piezas en la parte superior
+                        if (!canMove(currentPiece, currentPiece.getX(), currentPiece.getY())) {
+                            // DO NOT auto-reset here; delegate to caller or show dialog and stop
+                            running = false; // detener el juego
+                            // mostrar mensaje y gestionar highscores desde el UI que invocó start()
+                            SwingUtilities.invokeLater(() -> {
+                                JOptionPane.showMessageDialog(this,
+                                        App.mensajes.getString("game.end"),
+                                        "Game Over", JOptionPane.INFORMATION_MESSAGE);
+                            });
+                        }
+                    }
+                    repaint();
+                }
+            } catch (InterruptedException e) {
+                // Thread interrumpido, salimos limpiamente
+                Thread.currentThread().interrupt();
+            }
+        });
+        gameThread.start();
+    }
+
+    /**
+     * Detiene el hilo del juego (vuelve al menú sin reiniciar automáticamente).
+     */
+    public void stop() {
+        running = false;
+        if (gameThread != null) {
+            gameThread.interrupt();
+            try {
+                gameThread.join(200); // esperamos un corto tiempo
+            } catch (InterruptedException ignored) {
+            }
+            gameThread = null;
+        }
     }
 
     private void handleKey(KeyEvent e) {
@@ -82,47 +162,6 @@ public class GamePanel extends JPanel {
                 }
                 break;
         }
-    }
-
-    private void startGameLoop() {
-        Thread gameThread = new Thread(() -> {
-            try {
-                while (true) {
-                    Thread.sleep(dropSpeed);
-                    if (canMove(currentPiece, currentPiece.getX(), currentPiece.getY() + 1)) {
-                        currentPiece.moveDown();
-                    } else {
-                        mergePieceToBoard(currentPiece);
-                        int cleared = clearFullRows();
-                        linesCleared += cleared;
-                        // 💯 Añadir puntuación por filas borradas
-                        if (cleared > 0) {
-                            SoundManager.playClear();
-                            switch (cleared) {
-                                case 1 -> score += 100;
-                                case 2 -> score += 300;
-                                case 3 -> score += 500;
-                                case 4 -> score += 800; // Tetris!
-                            }
-                        }
-
-                        spawnNewPiece();
-
-                        // 🔚 Verificar si hay piezas en la parte superior
-                        if (!canMove(currentPiece, currentPiece.getX(), currentPiece.getY())) {
-                            JOptionPane.showMessageDialog(this,
-                                    App.mensajes.getString("game.end"),
-                                    "Game Over", JOptionPane.INFORMATION_MESSAGE);
-                            resetGame();
-                        }
-                    }
-                    repaint();
-                }
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        });
-        gameThread.start();
     }
 
     private boolean canMove(Piece piece, int x, int y) {

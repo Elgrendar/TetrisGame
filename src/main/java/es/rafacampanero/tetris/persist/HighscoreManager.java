@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-public class HighscoreManager {
+public class HighScoreManager {
     private static final File FILE = new File("data/highscores.json");
     private static final ObjectMapper mapper = new ObjectMapper();
 
