@@ -4,6 +4,9 @@ import java.awt.Color;
 
 /**
  * Representa una pieza del Tetris.
+ * 
+ * @author rafacampanero.es
+ * @version 1.0
  */
 public class Piece {
 

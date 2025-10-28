@@ -3,15 +3,12 @@ package es.rafacampanero.tetris;
 import java.util.Locale;
 import java.util.ResourceBundle;
 import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.SwingConstants;
-import java.awt.Font;
 
 /**
  * Clase principal del juego Tetris.
  * Crea la ventana base y carga el idioma por defecto (español).
  * 
- * @author Rafa
+ * @author rafacampanero.es
  * @version 1.0
  */
 public class App {
