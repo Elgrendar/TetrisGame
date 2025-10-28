@@ -2,12 +2,16 @@ package es.rafacampanero.tetris;
 
 import es.rafacampanero.tetris.game.Piece;
 import es.rafacampanero.tetris.sound.SoundManager;
+import es.rafacampanero.tetris.game.HighScoreManager;
+import es.rafacampanero.tetris.ui.HighScorePanel;
 
 import javax.swing.JPanel;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.util.Random;
+
+import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 
 /**
@@ -25,12 +29,11 @@ public class GamePanel extends JPanel {
     private Piece currentPiece;
     private Random random;
     private int dropSpeed = 500; // milisegundos
+    private HighScoreManager highScoreManager = new HighScoreManager();// gestor de puntuaciones
 
     // 🎯 Variables de puntuación
     private int score = 0;
     private int linesCleared = 0;
-
-
 
     public GamePanel() {
         // Ahora el panel es más ancho para mostrar la puntuación
@@ -110,11 +113,32 @@ public class GamePanel extends JPanel {
 
                         // 🔚 Verificar si hay piezas en la parte superior
                         if (!canMove(currentPiece, currentPiece.getX(), currentPiece.getY())) {
+                            // Comprobar si la puntuación entra en el top 20
+                            if (highScoreManager.qualifiesForHighScore(score)) {
+                                String name = JOptionPane.showInputDialog(this,
+                                        App.mensajes.getString("game.highscore.entername"),
+                                        "High Score", JOptionPane.PLAIN_MESSAGE);
+                                if (name != null && !name.isBlank()) {
+                                    highScoreManager.addScore(name.trim(), score);
+                                }
+                            }
+
+                            // Mostrar mensaje de fin de juego
                             JOptionPane.showMessageDialog(this,
                                     App.mensajes.getString("game.end"),
                                     "Game Over", JOptionPane.INFORMATION_MESSAGE);
+
+                            // Mostrar muro de la fama en ventana aparte
+                            JFrame hsFrame = new JFrame("Muro de la Fama");
+                            HighScorePanel hsPanel = new HighScorePanel(highScoreManager);
+                            hsFrame.add(hsPanel);
+                            hsFrame.pack();
+                            hsFrame.setLocationRelativeTo(this);
+                            hsFrame.setVisible(true);
+
                             resetGame();
                         }
+
                     }
                     repaint();
                 }
