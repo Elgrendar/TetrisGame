@@ -31,6 +31,8 @@ public class GamePanel extends JPanel {
     // 🎯 Puntuación
     private int score = 0;
     private int linesCleared = 0;
+    private int level = 1; // Nivel actual
+    private int linesPerLevel = 10; // Líneas necesarias para subir de nivel
 
     // 🏆 Gestor de puntuaciones
     private final HighScoreManager highScoreManager = new HighScoreManager();
@@ -82,6 +84,13 @@ public class GamePanel extends JPanel {
                         int cleared = clearFullRows();
                         linesCleared += cleared;
 
+                        // Subir de nivel
+                        int newLevel = linesCleared / linesPerLevel + 1;
+                        if (newLevel > level) {
+                            level = newLevel;
+                            // Aumentar velocidad de caída (lineal)
+                            dropSpeed = Math.max(100, 500 - (level - 1) * 50); // velocidad mínima 100ms
+                        }
                         if (cleared > 0) {
                             SoundManager.playClear();
                             switch (cleared) {
@@ -322,5 +331,7 @@ public class GamePanel extends JPanel {
         g.setFont(new Font("Consolas", Font.BOLD, 18));
         g.drawString(App.mensajes.getString("game.score") + ": " + score, offsetX, 50);
         g.drawString(App.mensajes.getString("game.lines") + ": " + linesCleared, offsetX, 80);
+        g.drawString(App.mensajes.getString("game.level") + ": " + level, offsetX, 110);
+
     }
 }
