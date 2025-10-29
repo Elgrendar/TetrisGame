@@ -2,14 +2,14 @@ package es.rafacampanero.tetris.ui;
 
 import es.rafacampanero.tetris.App;
 import es.rafacampanero.tetris.GamePanel;
-import es.rafacampanero.tetris.persist.HighScoreManager;
-
+import es.rafacampanero.tetris.game.HighScoreManager;
 
 import javax.swing.*;
 import java.awt.*;
 
 /**
- * Panel del menú principal con opciones: Empezar, Muro de la Fama, Configuración.
+ * Panel del menú principal con opciones: Empezar, Muro de la Fama,
+ * Configuración.
  */
 public class MainMenuPanel extends JPanel {
 
@@ -23,37 +23,57 @@ public class MainMenuPanel extends JPanel {
         setBackground(Color.DARK_GRAY);
 
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(10,10,10,10);
+        gbc.insets = new Insets(10, 10, 10, 10);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         JLabel title = new JLabel(App.mensajes.getString("game.title"), SwingConstants.CENTER);
         title.setFont(new Font("Consolas", Font.BOLD, 28));
         title.setForeground(Color.WHITE);
-        gbc.gridx = 0; gbc.gridy = 0; add(title, gbc);
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        add(title, gbc);
 
         JButton startBtn = new JButton(App.mensajes.getString("menu.start"));
-        gbc.gridy = 1; add(startBtn, gbc);
+        gbc.gridy = 1;
+        add(startBtn, gbc);
 
         JButton hsBtn = new JButton(App.mensajes.getString("menu.highscores"));
-        gbc.gridy = 2; add(hsBtn, gbc);
+        gbc.gridy = 2;
+        add(hsBtn, gbc);
 
         JButton cfgBtn = new JButton(App.mensajes.getString("menu.config"));
-        gbc.gridy = 3; add(cfgBtn, gbc);
+        gbc.gridy = 3;
+        add(cfgBtn, gbc);
 
         // Acción: Empezar juego
         startBtn.addActionListener(e -> {
-            // Crear panel de juego y arrancar
             GamePanel gamePanel = new GamePanel();
+
+            // 👇 Definir qué hacer cuando termine el juego
+            gamePanel.setOnGameOver(() -> {
+                SwingUtilities.invokeLater(() -> {
+                    parentFrame.getContentPane().removeAll();
+                    parentFrame.add(new MainMenuPanel(parentFrame, highScoreManager));
+                    parentFrame.revalidate();
+                    parentFrame.repaint();
+                });
+            });
+
+            // Crear panel de juego y arrancar
+
             parentFrame.getContentPane().removeAll();
             parentFrame.add(gamePanel);
             parentFrame.revalidate();
             parentFrame.repaint();
             gamePanel.requestFocusInWindow();
             gamePanel.start(); // arrancar el bucle
+
         });
 
         // Acción: Muro de la Fama
-        hsBtn.addActionListener(e -> {
+        hsBtn.addActionListener(e ->
+
+        {
             JFrame hsFrame = new JFrame(App.mensajes.getString("menu.highscores"));
             HighScorePanel panel = new HighScorePanel(highScoreManager);
             hsFrame.add(panel);

@@ -1,50 +1,47 @@
 package es.rafacampanero.tetris;
 
 import es.rafacampanero.tetris.game.Piece;
-import es.rafacampanero.tetris.sound.SoundManager;
 import es.rafacampanero.tetris.game.HighScoreManager;
+import es.rafacampanero.tetris.sound.SoundManager;
 import es.rafacampanero.tetris.ui.HighScorePanel;
 
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
+import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.util.Random;
 
-import javax.swing.JFrame;
-import javax.swing.JOptionPane;
-
 /**
  * Panel principal del juego Tetris.
- *
  * Controla el tablero, piezas, colisiones, sonidos y puntuación.
- *
- * Ahora exposa métodos start() y stop() para controlar el bucle desde fuera
- * (para que el juego no arranque automáticamente al crear el panel).
+ * 
+ * Ahora el juego no arranca automáticamente: se debe llamar a start() desde
+ * fuera.
  */
 public class GamePanel extends JPanel {
-
-    private final int filas = 20;
-    private final int columnas = 10;
-    private final int tamanoCelda = 30;
 
     private int[][] board;
     private Piece currentPiece;
     private Random random;
-    private int dropSpeed = 500; // milisegundos
-    private HighScoreManager highScoreManager = new HighScoreManager();// gestor de puntuaciones
 
-    // 🎯 Variables de puntuación
+    private Thread gameThread;
+    private boolean running = false;
+    private int dropSpeed = 500; // milisegundos
+
+    // 🎯 Puntuación
     private int score = 0;
     private int linesCleared = 0;
 
+    // 🏆 Gestor de puntuaciones
+    private final HighScoreManager highScoreManager = new HighScoreManager();
+    private Runnable onGameOver;
+
     public GamePanel() {
-        // Ahora el panel es más ancho para mostrar la puntuación
-        setPreferredSize(new Dimension(columnas * tamanoCelda + 150, filas * tamanoCelda));
+        // Aumentamos el ancho para mostrar puntuación
+        setPreferredSize(new Dimension(App.columnas * App.tamanoCelda + 150, App.filas * App.tamanoCelda));
         setBackground(Color.DARK_GRAY);
 
-        board = new int[filas][columnas];
+        board = new int[App.filas][App.columnas];
         random = new Random();
         SoundManager.init();
 
@@ -54,29 +51,27 @@ public class GamePanel extends JPanel {
         addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                // si no estamos corriendo, ignoramos input de juego
                 if (!running)
                     return;
                 handleKey(e);
                 repaint();
             }
         });
-
-        // NOTA: NO arrancamos el bucle aquí. Llamarás a start() desde el menú.
-        // startGameLoop(); <-- eliminado
     }
 
     /**
-     * Inicia el hilo del juego. Llamar esto cuando el usuario elija "Empezar".
+     * Inicia el bucle principal del juego.
      */
     public void start() {
         if (running)
             return;
         running = true;
+
         gameThread = new Thread(() -> {
             try {
                 while (running) {
                     Thread.sleep(dropSpeed);
+
                     if (currentPiece == null)
                         continue;
 
@@ -86,35 +81,67 @@ public class GamePanel extends JPanel {
                         mergePieceToBoard(currentPiece);
                         int cleared = clearFullRows();
                         linesCleared += cleared;
-                        // 💯 Añadir puntuación por filas borradas
+
                         if (cleared > 0) {
                             SoundManager.playClear();
                             switch (cleared) {
                                 case 1 -> score += 100;
                                 case 2 -> score += 300;
                                 case 3 -> score += 500;
-                                case 4 -> score += 800; // Tetris!
+                                case 4 -> score += 800;
                             }
                         }
 
                         spawnNewPiece();
 
-                        // 🔚 Verificar si hay piezas en la parte superior
+                        // 🔚 Verificar si el juego termina
                         if (!canMove(currentPiece, currentPiece.getX(), currentPiece.getY())) {
-                            // DO NOT auto-reset here; delegate to caller or show dialog and stop
-                            running = false; // detener el juego
-                            // mostrar mensaje y gestionar highscores desde el UI que invocó start()
+                            running = false;
+
                             SwingUtilities.invokeLater(() -> {
-                                JOptionPane.showMessageDialog(this,
+                                // Mostrar "Game Over"
+                                JOptionPane.showMessageDialog(
+                                        this,
                                         App.mensajes.getString("game.end"),
-                                        "Game Over", JOptionPane.INFORMATION_MESSAGE);
+                                        App.mensajes.getString("game.end.title"),
+                                        JOptionPane.INFORMATION_MESSAGE);
+
+                                // Si la puntuación califica para el top 20
+                                if (highScoreManager.qualifiesForHighScore(score)) {
+                                    String name = JOptionPane.showInputDialog(
+                                            this,
+                                            App.mensajes.getString("game.highscore.entername"),
+                                            "High Score",
+                                            JOptionPane.PLAIN_MESSAGE);
+                                    if (name != null && !name.isBlank()) {
+                                        highScoreManager.addScore(name.trim(), score);
+                                    }
+                                }
+
+                                // Mostrar muro de la fama
+                                JFrame hsFrame = new JFrame("Muro de la Fama");
+                                hsFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                                hsFrame.add(new HighScorePanel(highScoreManager));
+                                hsFrame.pack();
+                                hsFrame.setLocationRelativeTo(this);
+                                hsFrame.setVisible(true);
+
+                                // 👇 Después de mostrar el muro, volver al menú principal
+                                hsFrame.addWindowListener(new java.awt.event.WindowAdapter() {
+                                    @Override
+                                    public void windowClosed(java.awt.event.WindowEvent e) {
+                                        if (onGameOver != null) {
+                                            onGameOver.run();
+                                        }
+                                    }
+                                });
                             });
                         }
                     }
+
                     repaint();
                 }
             } catch (InterruptedException e) {
-                // Thread interrumpido, salimos limpiamente
                 Thread.currentThread().interrupt();
             }
         });
@@ -122,109 +149,51 @@ public class GamePanel extends JPanel {
     }
 
     /**
-     * Detiene el hilo del juego (vuelve al menú sin reiniciar automáticamente).
+     * Detiene el juego y limpia el hilo.
      */
     public void stop() {
         running = false;
         if (gameThread != null) {
             gameThread.interrupt();
             try {
-                gameThread.join(200); // esperamos un corto tiempo
+                gameThread.join(200);
             } catch (InterruptedException ignored) {
             }
             gameThread = null;
         }
     }
 
+    public void setOnGameOver(Runnable onGameOver) {
+        this.onGameOver = onGameOver;
+    }
+
     private void handleKey(KeyEvent e) {
         switch (e.getKeyCode()) {
-            case KeyEvent.VK_LEFT:
+            case KeyEvent.VK_LEFT -> {
                 if (canMove(currentPiece, currentPiece.getX() - 1, currentPiece.getY())) {
                     currentPiece.moveLeft();
                     SoundManager.playMove();
                 }
-                break;
-            case KeyEvent.VK_RIGHT:
+            }
+            case KeyEvent.VK_RIGHT -> {
                 if (canMove(currentPiece, currentPiece.getX() + 1, currentPiece.getY())) {
                     currentPiece.moveRight();
                     SoundManager.playMove();
                 }
-                break;
-            case KeyEvent.VK_DOWN:
+            }
+            case KeyEvent.VK_DOWN -> {
                 if (canMove(currentPiece, currentPiece.getX(), currentPiece.getY() + 1)) {
                     currentPiece.moveDown();
                 }
-                break;
-            case KeyEvent.VK_W:
+            }
+            case KeyEvent.VK_W, KeyEvent.VK_UP -> {
                 Piece rotated = currentPiece.getRotatedCopy();
                 if (canMove(rotated, rotated.getX(), rotated.getY())) {
                     currentPiece.rotate();
                     SoundManager.playRotate();
                 }
-                break;
-        }
-    }
-
-    private void startGameLoop() {
-        Thread gameThread = new Thread(() -> {
-            try {
-                while (true) {
-                    Thread.sleep(dropSpeed);
-                    if (canMove(currentPiece, currentPiece.getX(), currentPiece.getY() + 1)) {
-                        currentPiece.moveDown();
-                    } else {
-                        mergePieceToBoard(currentPiece);
-                        int cleared = clearFullRows();
-                        linesCleared += cleared;
-                        // 💯 Añadir puntuación por filas borradas
-                        if (cleared > 0) {
-                            SoundManager.playClear();
-                            switch (cleared) {
-                                case 1 -> score += 100;
-                                case 2 -> score += 300;
-                                case 3 -> score += 500;
-                                case 4 -> score += 800; // Tetris!
-                            }
-                        }
-
-                        spawnNewPiece();
-
-                        // 🔚 Verificar si hay piezas en la parte superior
-                        if (!canMove(currentPiece, currentPiece.getX(), currentPiece.getY())) {
-                            // Comprobar si la puntuación entra en el top 20
-                            if (highScoreManager.qualifiesForHighScore(score)) {
-                                String name = JOptionPane.showInputDialog(this,
-                                        App.mensajes.getString("game.highscore.entername"),
-                                        "High Score", JOptionPane.PLAIN_MESSAGE);
-                                if (name != null && !name.isBlank()) {
-                                    highScoreManager.addScore(name.trim(), score);
-                                }
-                            }
-
-                            // Mostrar mensaje de fin de juego
-                            JOptionPane.showMessageDialog(this,
-                                    App.mensajes.getString("game.end"),
-                                    "Game Over", JOptionPane.INFORMATION_MESSAGE);
-
-                            // Mostrar muro de la fama en ventana aparte
-                            JFrame hsFrame = new JFrame("Muro de la Fama");
-                            HighScorePanel hsPanel = new HighScorePanel(highScoreManager);
-                            hsFrame.add(hsPanel);
-                            hsFrame.pack();
-                            hsFrame.setLocationRelativeTo(this);
-                            hsFrame.setVisible(true);
-
-                            resetGame();
-                        }
-
-                    }
-                    repaint();
-                }
-            } catch (InterruptedException e) {
-                e.printStackTrace();
             }
-        });
-        gameThread.start();
+        }
     }
 
     private boolean canMove(Piece piece, int x, int y) {
@@ -235,7 +204,7 @@ public class GamePanel extends JPanel {
                     int newX = x + j;
                     int newY = y + i;
 
-                    if (newX < 0 || newX >= columnas || newY < 0 || newY >= filas)
+                    if (newX < 0 || newX >= App.columnas || newY < 0 || newY >= App.filas)
                         return false;
 
                     if (board[newY][newX] != 0)
@@ -248,110 +217,101 @@ public class GamePanel extends JPanel {
 
     private void mergePieceToBoard(Piece piece) {
         int[][] shape = piece.getShape();
-        Color color = piece.getColor();
-        int colorId = color.getRGB();
+        int colorId = piece.getColor().getRGB();
 
         for (int i = 0; i < shape.length; i++) {
             for (int j = 0; j < shape[i].length; j++) {
                 if (shape[i][j] != 0) {
                     int x = piece.getX() + j;
                     int y = piece.getY() + i;
-                    if (y >= 0 && y < filas && x >= 0 && x < columnas)
+                    if (y >= 0 && y < App.filas && x >= 0 && x < App.columnas) {
                         board[y][x] = colorId;
+                    }
                 }
             }
         }
     }
 
-    /**
-     * Limpia filas completas y devuelve cuántas se eliminaron.
-     */
     private int clearFullRows() {
-        int linesCleared = 0;
+        int cleared = 0;
 
-        for (int i = filas - 1; i >= 0; i--) {
+        for (int i = App.filas - 1; i >= 0; i--) {
             boolean full = true;
-            for (int j = 0; j < columnas; j++) {
+            for (int j = 0; j < App.columnas; j++) {
                 if (board[i][j] == 0) {
                     full = false;
                     break;
                 }
             }
             if (full) {
-                linesCleared++;
+                cleared++;
                 for (int k = i; k > 0; k--) {
                     board[k] = board[k - 1].clone();
                 }
-                board[0] = new int[columnas];
+                board[0] = new int[App.columnas];
                 i++;
             }
         }
-        return linesCleared;
+
+        return cleared;
     }
 
     private void spawnNewPiece() {
         Piece.Type[] types = Piece.Type.values();
-        Piece.Type type = types[random.nextInt(types.length)];
-        currentPiece = new Piece(type);
-    }
-
-    /**
-     * Reinicia el juego tras un "Game Over".
-     */
-    private void resetGame() {
-        board = new int[filas][columnas];
-        score = 0;
-        spawnNewPiece();
+        currentPiece = new Piece(types[random.nextInt(types.length)]);
     }
 
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-
         int panelHeight = getHeight();
 
-        // 🟦 Dibujar tablero principal
-        for (int fila = 0; fila < filas; fila++) {
-            for (int col = 0; col < columnas; col++) {
+        // 🟦 Dibujar fondo del tablero
+        g.setColor(Color.DARK_GRAY);
+        g.fillRect(0, 0, App.columnas * App.tamanoCelda, App.filas * App.tamanoCelda);
+
+        // 🟪 Dibujar las piezas fijas en el tablero
+        for (int fila = 0; fila < App.filas; fila++) {
+            for (int col = 0; col < App.columnas; col++) {
                 if (board[fila][col] != 0) {
                     g.setColor(new Color(board[fila][col]));
-                    int x = col * tamanoCelda;
-                    int y = panelHeight - (filas - fila) * tamanoCelda;
-                    g.fillRect(x, y, tamanoCelda, tamanoCelda);
+                    int x = col * App.tamanoCelda;
+                    int y = panelHeight - (App.filas - fila) * App.tamanoCelda;
+                    g.fillRect(x, y, App.tamanoCelda, App.tamanoCelda);
                     g.setColor(Color.BLACK);
-                    g.drawRect(x, y, tamanoCelda, tamanoCelda);
+                    g.drawRect(x, y, App.tamanoCelda, App.tamanoCelda);
                 }
             }
         }
 
-        // 🧩 Dibujar pieza actual
+        // 🧩 Dibujar la pieza actual
         int[][] shape = currentPiece.getShape();
         g.setColor(currentPiece.getColor());
         for (int fila = 0; fila < shape.length; fila++) {
             for (int col = 0; col < shape[fila].length; col++) {
                 if (shape[fila][col] != 0) {
-                    int x = (currentPiece.getX() + col) * tamanoCelda;
-                    int y = panelHeight - (filas - (currentPiece.getY() + fila)) * tamanoCelda;
-                    g.fillRect(x, y, tamanoCelda, tamanoCelda);
+                    int x = (currentPiece.getX() + col) * App.tamanoCelda;
+                    int y = panelHeight - (App.filas - (currentPiece.getY() + fila)) * App.tamanoCelda;
+                    g.fillRect(x, y, App.tamanoCelda, App.tamanoCelda);
                     g.setColor(Color.BLACK);
-                    g.drawRect(x, y, tamanoCelda, tamanoCelda);
+                    g.drawRect(x, y, App.tamanoCelda, App.tamanoCelda);
                     g.setColor(currentPiece.getColor());
                 }
             }
         }
 
-        // 🕹️ Cuadrícula
-        g.setColor(Color.GRAY);
-        for (int fila = 0; fila < filas; fila++) {
-            for (int col = 0; col < columnas; col++) {
-                int x = col * tamanoCelda;
-                int y = panelHeight - (filas - fila) * tamanoCelda;
-                g.drawRect(x, y, tamanoCelda, tamanoCelda);
+        // 🕹️ Dibujar la cuadrícula completa encima
+        g.setColor(Color.WHITE);
+        for (int fila = 0; fila < App.filas; fila++) {
+            for (int col = 0; col < App.columnas; col++) {
+                int x = col * App.tamanoCelda;
+                int y = panelHeight - (App.filas - fila) * App.tamanoCelda;
+                g.drawRect(x, y, App.tamanoCelda, App.tamanoCelda);
             }
         }
 
-        // 📊 Panel lateral derecho con puntuación
-        int offsetX = columnas * tamanoCelda + 20;
+        // 📊 Lateral con puntuación
+        int offsetX = App.columnas * App.tamanoCelda + 20;
         g.setColor(Color.WHITE);
         g.setFont(new Font("Consolas", Font.BOLD, 18));
         g.drawString(App.mensajes.getString("game.score") + ": " + score, offsetX, 50);

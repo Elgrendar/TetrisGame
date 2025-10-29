@@ -14,8 +14,8 @@ public class HighScorePanel extends JPanel {
 
     private HighScoreManager highScoreManager;
 
-    public HighScorePanel(HighScoreManager manager) {
-        this.highScoreManager = manager;
+    public HighScorePanel(es.rafacampanero.tetris.game.HighScoreManager highScoreManager2) {
+        this.highScoreManager = highScoreManager2;
         setPreferredSize(new Dimension(400, 600));
         setBackground(Color.DARK_GRAY);
     }
