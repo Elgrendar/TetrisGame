@@ -169,20 +169,26 @@ public class GamePanel extends JPanel {
 
     private void handleKey(KeyEvent e) {
         switch (e.getKeyCode()) {
-            case KeyEvent.VK_LEFT -> {
+            case KeyEvent.VK_A, KeyEvent.VK_LEFT -> {
                 if (canMove(currentPiece, currentPiece.getX() - 1, currentPiece.getY())) {
                     currentPiece.moveLeft();
                     SoundManager.playMove();
                 }
             }
-            case KeyEvent.VK_RIGHT -> {
+            case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> {
                 if (canMove(currentPiece, currentPiece.getX() + 1, currentPiece.getY())) {
                     currentPiece.moveRight();
                     SoundManager.playMove();
                 }
             }
-            case KeyEvent.VK_DOWN -> {
+            case KeyEvent.VK_S, KeyEvent.VK_DOWN -> {
                 if (canMove(currentPiece, currentPiece.getX(), currentPiece.getY() + 1)) {
+                    currentPiece.moveDown();
+                }
+            }
+
+            case KeyEvent.VK_SPACE -> {
+                while (canMove(currentPiece, currentPiece.getX(), currentPiece.getY() + 1)) {
                     currentPiece.moveDown();
                 }
             }
