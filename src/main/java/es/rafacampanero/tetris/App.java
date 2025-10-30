@@ -19,9 +19,9 @@ public class App {
 
     public static java.util.ResourceBundle mensajes;
     
-    final static int filas = 20;
-    final static int columnas = 10;
-    final static int tamanoCelda = 30;
+    public final static int filas = 20;
+    public final static int columnas = 10;
+    public final static int tamanoCelda = 30;
 
     public static void main(String[] args) {
         Locale locale = new Locale("es");

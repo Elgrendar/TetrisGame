@@ -1,7 +1,6 @@
 package es.rafacampanero.tetris.ui;
 
 import es.rafacampanero.tetris.App;
-import es.rafacampanero.tetris.GamePanel;
 import es.rafacampanero.tetris.game.HighScoreManager;
 
 import javax.swing.*;
@@ -37,15 +36,19 @@ public class MainMenuPanel extends JPanel {
         gbc.gridy = 1;
         add(startBtn, gbc);
 
-        JButton hsBtn = new JButton(App.mensajes.getString("menu.highscores"));
+        JButton puzzlesBtn = new JButton(App.mensajes.getString("puzles.title"));
         gbc.gridy = 2;
+        add(puzzlesBtn, gbc);
+
+        JButton hsBtn = new JButton(App.mensajes.getString("menu.highscores"));
+        gbc.gridy = 3;
         add(hsBtn, gbc);
 
         JButton cfgBtn = new JButton(App.mensajes.getString("menu.config"));
-        gbc.gridy = 3;
+        gbc.gridy = 4;
         add(cfgBtn, gbc);
 
-        // Acción: Empezar juego
+        // Acción: Empezar juego normal
         startBtn.addActionListener(e -> {
             GamePanel gamePanel = new GamePanel();
 
@@ -68,6 +71,30 @@ public class MainMenuPanel extends JPanel {
             gamePanel.requestFocusInWindow();
             gamePanel.start(); // arrancar el bucle
 
+        });
+
+        // Acción: Empezar modo puzles
+        puzzlesBtn.addActionListener(e -> {
+
+            PuzzlesPanel puzzlesPanel = new PuzzlesPanel();
+
+            // 👇 Definir qué hacer cuando termine el juego
+            puzzlesPanel.setOnGameOver(() -> {
+                SwingUtilities.invokeLater(() -> {
+                    parentFrame.getContentPane().removeAll();
+                    parentFrame.add(new MainMenuPanel(parentFrame, highScoreManager));
+                    parentFrame.revalidate();
+                    parentFrame.repaint();
+                });
+            });
+
+            // Crear panel de juego y arrancar
+            parentFrame.getContentPane().removeAll();
+            parentFrame.add(puzzlesPanel);
+            parentFrame.revalidate();
+            parentFrame.repaint();
+            puzzlesPanel.requestFocusInWindow();
+            puzzlesPanel.start(); // arrancar el bucle
         });
 
         // Acción: Muro de la Fama
